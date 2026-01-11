@@ -1,17 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: false,
-  },
+  // ESLint and TypeScript configs are now handled differently in Next.js 16
+  // They can be configured via eslint.config.mjs and tsconfig.json respectively
   experimental: {
     // optimizeCss: true, // Disabled to avoid critters dependency issue
   },
   images: {
-    domains: ['vercel.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'vercel.com',
+      },
+    ],
     unoptimized: false,
   },
   compiler: {
