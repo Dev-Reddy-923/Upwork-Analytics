@@ -37,13 +37,14 @@ import {
   Star as StarIcon,
   TrendingUp as TrendingUpIcon,
   OpenInNew as OpenInNewIcon,
-  
+  AutoAwesome as AutoAwesomeIcon,
   People as PeopleIcon,
   Code as CodeIcon,
   AccessTime as AccessTimeIcon,
 } from '@mui/icons-material'
 import { supabase } from '@/lib/supabase'
 import type { ScrapedJob } from '@/lib/supabase'
+import ProposalModal from './ProposalModal'
 
 export default function MaterialJobsList() {
   const theme = useTheme()
@@ -51,6 +52,12 @@ export default function MaterialJobsList() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
+  
+  // Proposal modal state
+  const [proposalModalOpen, setProposalModalOpen] = useState(false)
+  const [proposal, setProposal] = useState<string | null>(null)
+  const [proposalLoading, setProposalLoading] = useState(false)
+  const [proposalError, setProposalError] = useState<string | null>(null)
 
   // Fetch jobs on component mount
   useEffect(() => {
@@ -158,6 +165,48 @@ export default function MaterialJobsList() {
       
     } catch {
       return dateStr
+    }
+  }
+
+  // Generate AI proposal
+  const handleGenerateProposal = async (job: ScrapedJob) => {
+    setProposalModalOpen(true)
+    setProposalLoading(true)
+    setProposalError(null)
+    setProposal(null)
+
+    try {
+      const response = await fetch('/api/generate-proposal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobDetails: {
+            title: job.title,
+            description: job.description,
+            budget_amount: job.budget_amount,
+            budget_type: job.budget_type,
+            experience_level: job.experience_level,
+            skills: parseSkills(job.skills),
+            location: job.location,
+            client_location: job.client_location,
+          },
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate proposal')
+      }
+
+      setProposal(data.proposal)
+    } catch (error: any) {
+      console.error('Error generating proposal:', error)
+      setProposalError(error.message || 'Failed to generate proposal. Please try again.')
+    } finally {
+      setProposalLoading(false)
     }
   }
 
@@ -486,21 +535,43 @@ export default function MaterialJobsList() {
                         Job ID: {job.job_id || 'N/A'}
                       </Typography>
                       
-                      {job.job_url && (
+                      <Stack direction="row" spacing={1}>
                         <Button
-                          variant="contained"
+                          variant="outlined"
                           size="small"
-                          endIcon={<OpenInNewIcon />}
-                          onClick={() => window.open(job.job_url, '_blank')}
+                          startIcon={<AutoAwesomeIcon />}
+                          onClick={() => handleGenerateProposal(job)}
                           sx={{
                             borderRadius: 2,
                             textTransform: 'none',
                             fontWeight: 600,
+                            borderColor: 'primary.main',
+                            color: 'primary.main',
+                            '&:hover': {
+                              borderColor: 'primary.dark',
+                              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                            },
                           }}
                         >
-                          View on Upwork
+                          Generate AI Proposal
                         </Button>
-                      )}
+                        
+                        {job.job_url && (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            endIcon={<OpenInNewIcon />}
+                            onClick={() => window.open(job.job_url, '_blank')}
+                            sx={{
+                              borderRadius: 2,
+                              textTransform: 'none',
+                              fontWeight: 600,
+                            }}
+                          >
+                            View on Upwork
+                          </Button>
+                        )}
+                      </Stack>
                     </Box>
                   </Stack>
                 </CardContent>
@@ -509,6 +580,19 @@ export default function MaterialJobsList() {
           ))}
         </Box>
       )}
+
+      {/* Proposal Modal */}
+      <ProposalModal
+        open={proposalModalOpen}
+        onClose={() => {
+          setProposalModalOpen(false)
+          setProposal(null)
+          setProposalError(null)
+        }}
+        proposal={proposal}
+        loading={proposalLoading}
+        error={proposalError}
+      />
     </Container>
   )
 } 
