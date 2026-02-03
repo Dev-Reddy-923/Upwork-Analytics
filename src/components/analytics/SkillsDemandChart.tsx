@@ -26,7 +26,9 @@ export default function SkillsDemandChart({ jobs: _legacyJobs }: SkillsDemandCha
         const result = await response.json()
 
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to fetch metrics')
+          const errorMsg = result.error || result.details || 'Failed to fetch metrics'
+          console.error('Skills demand API error:', result)
+          throw new Error(errorMsg)
         }
 
         const data = result.data || []
