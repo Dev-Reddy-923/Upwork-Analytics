@@ -54,17 +54,17 @@ BEGIN
             ELSE '$5,000+'
           END
         ELSE 'Unknown'
-      END as budget_range,
+      END as br_range,
       budget_amount
     FROM complete_jobs
     WHERE budget_amount IS NOT NULL
   )
   SELECT 
-    budget_range,
+    br_range as budget_range,
     COUNT(*)::BIGINT as job_count,
     AVG(CAST(REGEXP_REPLACE(budget_amount, '[^0-9]', '', 'g') AS NUMERIC)) as avg_budget
   FROM budget_ranges
-  GROUP BY budget_range
+  GROUP BY br_range
   ORDER BY job_count DESC;
 END;
 $$ LANGUAGE plpgsql;
@@ -86,16 +86,16 @@ BEGIN
           ELSE 
             ARRAY(SELECT TRIM(UNNEST(STRING_TO_ARRAY(skills::text, ','))))
         END
-      ) as skill
+      ) as skill_name
     FROM complete_jobs
     WHERE skills IS NOT NULL
   )
   SELECT 
-    TRIM(skill) as skill,
+    TRIM(skill_name)::TEXT as skill,
     COUNT(*)::BIGINT as demand_count
   FROM skills_expanded
-  WHERE TRIM(skill) != ''
-  GROUP BY TRIM(skill)
+  WHERE TRIM(skill_name) != ''
+  GROUP BY TRIM(skill_name)
   ORDER BY demand_count DESC
   LIMIT 50;
 END;
