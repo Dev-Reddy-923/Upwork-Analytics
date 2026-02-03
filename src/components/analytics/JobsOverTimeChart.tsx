@@ -9,8 +9,8 @@ interface JobsOverTimeChartProps {
 }
 
 interface TimeSeriesData {
-  date: string
-  job_count: number
+  date: string | Date
+  count: number
 }
 
 export default function JobsOverTimeChart({ jobs: _legacyJobs }: JobsOverTimeChartProps) {
@@ -30,13 +30,13 @@ export default function JobsOverTimeChart({ jobs: _legacyJobs }: JobsOverTimeCha
         }
 
         const data = result.data || []
-        // Transform the data
+        // Transform the data - date comes as string from API
         const transformed = data
           .map((item: any) => ({
-            date: new Date(item.date),
+            date: item.date, // Keep as string for now
             count: Number(item.job_count)
           }))
-          .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
+          .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
         setTimelineData(transformed)
       } catch (err: any) {
@@ -83,7 +83,11 @@ export default function JobsOverTimeChart({ jobs: _legacyJobs }: JobsOverTimeCha
   }
 
   // Prepare data for ECharts
-  const dates = timelineData.map(item => item.date.toISOString().split('T')[0])
+  const dates = timelineData.map(item => {
+    // Handle both Date objects and date strings
+    const dateStr = typeof item.date === 'string' ? item.date : item.date.toISOString()
+    return dateStr.split('T')[0]
+  })
   const counts = timelineData.map(item => item.count)
   const maxJobs = Math.max(...counts)
   const totalJobs = counts.reduce((sum, count) => sum + count, 0)

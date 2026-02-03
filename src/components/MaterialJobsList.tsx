@@ -7,7 +7,6 @@ import {
   Box,
   Card,
   CardContent,
-
   TextField,
   Select,
   MenuItem,
@@ -26,6 +25,7 @@ import {
   Alert,
   useTheme,
   alpha,
+  Pagination,
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -41,10 +41,16 @@ import {
   People as PeopleIcon,
   Code as CodeIcon,
   AccessTime as AccessTimeIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  FirstPage as FirstPageIcon,
+  LastPage as LastPageIcon,
 } from '@mui/icons-material'
 import { supabase } from '@/lib/supabase'
 import type { ScrapedJob } from '@/lib/supabase'
 import ProposalModal from './ProposalModal'
+
+const JOBS_PER_PAGE = 100
 
 export default function MaterialJobsList() {
   const theme = useTheme()
@@ -52,6 +58,9 @@ export default function MaterialJobsList() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalJobs, setTotalJobs] = useState<number>(0)
+  const [totalCompleteJobs, setTotalCompleteJobs] = useState<number>(0)
   
   // Proposal modal state
   const [proposalModalOpen, setProposalModalOpen] = useState(false)
@@ -59,17 +68,37 @@ export default function MaterialJobsList() {
   const [proposalLoading, setProposalLoading] = useState(false)
   const [proposalError, setProposalError] = useState<string | null>(null)
 
-  // Fetch jobs on component mount
+  // Fetch total job count
+  useEffect(() => {
+    async function fetchTotalCount() {
+      try {
+        const response = await fetch('/api/metrics/total-count')
+        const result = await response.json()
+        if (result.total !== undefined) {
+          setTotalJobs(result.total)
+          setTotalCompleteJobs(result.complete || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching total count:', error)
+      }
+    }
+    fetchTotalCount()
+  }, [])
+
+  // Fetch jobs with pagination
   useEffect(() => {
     async function fetchJobs() {
       try {
         setLoading(true)
         
-        const { data, error } = await supabase
+        const from = (currentPage - 1) * JOBS_PER_PAGE
+        const to = from + JOBS_PER_PAGE - 1
+        
+        const { data, error, count } = await supabase
           .from('scraped_jobs')
-          .select('*')
+          .select('*', { count: 'exact' })
           .order('created_at', { ascending: false })
-          .limit(1000)
+          .range(from, to)
 
         if (error) {
           console.error('Error fetching jobs:', error)
@@ -77,6 +106,11 @@ export default function MaterialJobsList() {
         }
 
         setJobs(data || [])
+        
+        // Update total if we got a count
+        if (count !== null) {
+          setTotalJobs(count)
+        }
         
       } catch (error) {
         console.error('Unexpected error:', error)
@@ -86,7 +120,7 @@ export default function MaterialJobsList() {
     }
 
     fetchJobs()
-  }, [])
+  }, [currentPage])
 
   // Helper functions
   const parseSkills = (skillsData: any): string[] => {
@@ -271,12 +305,29 @@ export default function MaterialJobsList() {
     <Container maxWidth="xl">
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-          Job Opportunities
-        </Typography>
-        <Typography variant="body1" color="text.secondary" gutterBottom>
-          Discover {jobs.length} latest opportunities from Upwork marketplace
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Box>
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
+              Job Opportunities
+            </Typography>
+            <Typography variant="body1" color="text.secondary" gutterBottom>
+              Showing {jobs.length} jobs (Page {currentPage} of {Math.ceil(totalJobs / JOBS_PER_PAGE)})
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Chip 
+              label={`Total: ${totalJobs.toLocaleString()} jobs`}
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+            />
+            {totalCompleteJobs > 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                {totalCompleteJobs.toLocaleString()} complete
+              </Typography>
+            )}
+          </Box>
+        </Box>
       </Box>
 
       {/* Filters */}
@@ -330,17 +381,19 @@ export default function MaterialJobsList() {
       </Paper>
 
       {/* Results Count */}
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          Showing {filteredJobs.length} of {jobs.length} jobs
-        </Typography>
-        <Chip 
-          icon={<TrendingUpIcon />}
-          label="Live Data" 
-          color="success" 
-          variant="outlined" 
-          size="small" 
-        />
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Showing {filteredJobs.length} of {jobs.length} jobs on this page
+          </Typography>
+          <Chip 
+            icon={<TrendingUpIcon />}
+            label="Live Data" 
+            color="success" 
+            variant="outlined" 
+            size="small" 
+          />
+        </Box>
       </Box>
 
       {/* Job Cards */}
@@ -578,6 +631,69 @@ export default function MaterialJobsList() {
               </Card>
             </Box>
           ))}
+        </Box>
+      )}
+
+      {/* Pagination */}
+      {totalJobs > JOBS_PER_PAGE && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Button
+              variant="outlined"
+              startIcon={<FirstPageIcon />}
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              size="small"
+            >
+              First
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ChevronLeftIcon />}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              size="small"
+            >
+              Previous
+            </Button>
+            <Pagination
+              count={Math.ceil(totalJobs / JOBS_PER_PAGE)}
+              page={currentPage}
+              onChange={(_, page) => setCurrentPage(page)}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+            />
+            <Button
+              variant="outlined"
+              endIcon={<ChevronRightIcon />}
+              onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalJobs / JOBS_PER_PAGE), prev + 1))}
+              disabled={currentPage >= Math.ceil(totalJobs / JOBS_PER_PAGE)}
+              size="small"
+            >
+              Next
+            </Button>
+            <Button
+              variant="outlined"
+              endIcon={<LastPageIcon />}
+              onClick={() => setCurrentPage(Math.ceil(totalJobs / JOBS_PER_PAGE))}
+              disabled={currentPage >= Math.ceil(totalJobs / JOBS_PER_PAGE)}
+              size="small"
+            >
+              Last
+            </Button>
+          </Stack>
+        </Box>
+      )}
+
+      {/* Page Info */}
+      {totalJobs > JOBS_PER_PAGE && (
+        <Box sx={{ textAlign: 'center', mb: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Page {currentPage} of {Math.ceil(totalJobs / JOBS_PER_PAGE)} • 
+            Showing jobs {(currentPage - 1) * JOBS_PER_PAGE + 1} to {Math.min(currentPage * JOBS_PER_PAGE, totalJobs)} of {totalJobs.toLocaleString()}
+          </Typography>
         </Box>
       )}
 

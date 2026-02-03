@@ -166,3 +166,19 @@ BEGIN
   ORDER BY date DESC, hour;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 8. Function to get total job count
+CREATE OR REPLACE FUNCTION get_total_job_count()
+RETURNS BIGINT AS $$
+BEGIN
+  RETURN (SELECT COUNT(*)::BIGINT FROM scraped_jobs);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 9. Function to get total complete job count
+CREATE OR REPLACE FUNCTION get_total_complete_job_count()
+RETURNS BIGINT AS $$
+BEGIN
+  RETURN (SELECT COUNT(*)::BIGINT FROM complete_jobs);
+END;
+$$ LANGUAGE plpgsql;
