@@ -124,7 +124,7 @@ export default function Home() {
           
           {activeTab === 'premium-map' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <ClientActivityChart jobs={[]} />
+              <ClientActivityChart />
             </Box>
           )}
           

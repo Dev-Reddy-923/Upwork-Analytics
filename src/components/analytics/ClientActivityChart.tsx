@@ -1,13 +1,54 @@
 'use client'
 
 import ReactECharts from 'echarts-for-react'
-import { ScrapedJob } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { CircularProgress, Box, Typography } from '@mui/material'
+import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface ClientActivityChartProps {
-  jobs: ScrapedJob[]
+  jobs?: ScrapedJob[] // Keep for backward compatibility, but will fetch if empty
 }
 
-export default function ClientActivityChart({ jobs }: ClientActivityChartProps) {
+export default function ClientActivityChart({ jobs: propJobs }: ClientActivityChartProps) {
+  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
+  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Only fetch if no jobs provided or empty array
+    if (propJobs && propJobs.length > 0) {
+      setJobs(propJobs)
+      setLoading(false)
+      return
+    }
+
+    async function fetchJobs() {
+      try {
+        setLoading(true)
+        // Fetch jobs with client activity data
+        const { data, error: fetchError } = await supabase
+          .from('scraped_jobs')
+          .select('*')
+          .not('client_jobs_posted', 'is', null)
+          .not('client_total_spent', 'is', null)
+          .order('created_at', { ascending: false })
+
+        if (fetchError) {
+          throw new Error(fetchError.message)
+        }
+
+        setJobs(data || [])
+      } catch (err: any) {
+        console.error('Error fetching client activity data:', err)
+        setError(err.message || 'Failed to load data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchJobs()
+  }, [propJobs])
+
   // Extract client activity data
   const activityData = jobs
     .filter(job => 
@@ -35,6 +76,23 @@ export default function ClientActivityChart({ jobs }: ClientActivityChartProps) 
     })
     .filter(item => item.jobsPosted > 0 && item.totalSpent > 0)
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ textAlign: 'center', padding: '60px', color: 'error.main' }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{error}</Typography>
+      </Box>
+    )
+  }
+
   if (activityData.length === 0) {
     return (
       <div style={{ 
@@ -46,6 +104,9 @@ export default function ClientActivityChart({ jobs }: ClientActivityChartProps) 
         color: '#ffffff'
       }}>
         <h3 style={{ color: '#EC4899' }}>No client activity data available</h3>
+        <p style={{ color: 'rgba(255, 255, 255, 0.7)', marginTop: '16px' }}>
+          Jobs need to have both client_jobs_posted and client_total_spent data to display activity.
+        </p>
       </div>
     )
   }
