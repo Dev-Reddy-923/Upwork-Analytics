@@ -1,36 +1,72 @@
 'use client'
 
 import ReactECharts from 'echarts-for-react'
-import { ScrapedJob } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface ClientCountriesChartProps {
-  jobs: ScrapedJob[]
+  jobs?: any[] // Keep for backward compatibility
 }
 
-export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps) {
-  // Extract and count client locations
-  const locationCounts: Record<string, number> = {}
-  
-  jobs.forEach(job => {
-    if (job.client_location) {
-      const location = job.client_location.trim()
-      if (location && location !== 'Unknown' && location !== '') {
-        locationCounts[location] = (locationCounts[location] || 0) + 1
+interface CountryData {
+  country: string
+  job_count: number
+}
+
+export default function ClientCountriesChart({ jobs: _legacyJobs }: ClientCountriesChartProps) {
+  const [countryData, setCountryData] = useState<CountryData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchMetrics() {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/metrics/client-countries')
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to fetch metrics')
+        }
+
+        setCountryData(result.data || [])
+      } catch (err: any) {
+        console.error('Error fetching client countries:', err)
+        setError(err.message || 'Failed to load data')
+      } finally {
+        setLoading(false)
       }
     }
-  })
 
-  // Sort by count and get top countries
-  const countryData = Object.entries(locationCounts)
-    .map(([country, count]) => ({
-      country,
-      count,
-      percentage: ((count / jobs.length) * 100).toFixed(1)
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 12) // Top 12 countries
+    fetchMetrics()
+  }, [])
 
-  if (countryData.length === 0) {
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ textAlign: 'center', padding: '60px', color: 'error.main' }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{error}</Typography>
+      </Box>
+    )
+  }
+
+  const topCountries = countryData.slice(0, 12).map(item => ({
+    country: item.country,
+    count: Number(item.job_count),
+    percentage: countryData.length > 0 
+      ? ((Number(item.job_count) / countryData.reduce((sum, c) => sum + Number(c.job_count), 0)) * 100).toFixed(1)
+      : '0.0'
+  }))
+
+  if (topCountries.length === 0) {
     return (
       <div style={{ 
         textAlign: 'center', 
@@ -105,7 +141,7 @@ export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps
     backgroundColor: '#0a0e1a',
     title: {
       text: '🌍 Global Client Distribution',
-      subtext: `Geographic analysis from ${jobs.length} jobs across ${countryData.length} countries`,
+      subtext: `Geographic analysis from ${countryData.reduce((sum, c) => sum + Number(c.job_count), 0)} jobs across ${countryData.length} countries`,
       left: 'center',
       top: '3%',
       textStyle: {
@@ -136,7 +172,8 @@ export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps
       },
       formatter: function(params: any) {
         const data = params.data
-        const percentage = ((data.value / jobs.length) * 100).toFixed(1)
+        const totalJobs = topCountries.reduce((sum, c) => sum + c.count, 0)
+        const percentage = totalJobs > 0 ? ((data.value / totalJobs) * 100).toFixed(1) : '0.0'
         return `
           <div style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, ${data.itemStyle.color}15, ${data.itemStyle.color}05);">
             <div style="text-align: center; margin-bottom: 10px;">
@@ -190,7 +227,7 @@ export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps
     },
     yAxis: {
       type: 'category',
-      data: countryData.map(country => {
+      data: topCountries.map(country => {
         const flag = countryFlags[country.country] || '🌍'
         return `${flag} ${country.country}`
       }),
@@ -217,7 +254,7 @@ export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps
       {
         name: 'Job Distribution',
         type: 'bar',
-        data: countryData.map((country, index) => ({
+        data: topCountries.map((country, index) => ({
           value: country.count,
           name: country.country,
           flag: countryFlags[country.country] || '🌍',
@@ -258,7 +295,8 @@ export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps
           fontSize: 12,
           fontWeight: 'bold',
           formatter: function(params: any) {
-            const percentage = ((params.value / jobs.length) * 100).toFixed(1)
+            const totalJobs = topCountries.reduce((sum, c) => sum + c.count, 0)
+            const percentage = totalJobs > 0 ? ((params.value / totalJobs) * 100).toFixed(1) : '0.0'
             return `${params.value} (${percentage}%)`
           }
         },

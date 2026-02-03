@@ -130,43 +130,43 @@ export default function Home() {
           
           {activeTab === 'budget-analysis' && (
             <Box className="chart-container">
-              <BudgetAnalysisChart jobs={[]} />
+              <BudgetAnalysisChart />
             </Box>
           )}
           
           {activeTab === 'client-countries' && (
             <Box className="chart-container">
-              <ClientCountriesChart jobs={[]} />
+              <ClientCountriesChart />
             </Box>
           )}
           
           {activeTab === 'client-spending' && (
             <Box className="chart-container">
-              <ClientSpendingChart jobs={[]} />
+              <ClientSpendingChart />
             </Box>
           )}
           
           {activeTab === 'client-hire-rate' && (
             <Box className="chart-container">
-              <ClientHireRateChart jobs={[]} />
+              <ClientHireRateChart />
             </Box>
           )}
           
           {activeTab === 'client-hourly-rate' && (
             <Box className="chart-container">
-              <ClientHourlyRateChart jobs={[]} />
+              <ClientHourlyRateChart />
             </Box>
           )}
           
           {activeTab === 'connects-required' && (
             <Box className="chart-container">
-              <ConnectsRequiredChart jobs={[]} />
+              <ConnectsRequiredChart />
             </Box>
           )}
           
           {activeTab === 'interview-rate' && (
             <Box className="chart-container">
-              <InterviewingRateChart jobs={[]} />
+              <InterviewingRateChart />
             </Box>
           )}
           
@@ -178,7 +178,7 @@ export default function Home() {
           
           {activeTab === 'posting-heatmap' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <JobPostingHeatmap jobs={[]} />
+              <JobPostingHeatmap />
             </Box>
           )}
         </Container>

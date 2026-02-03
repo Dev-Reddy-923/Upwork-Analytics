@@ -1,49 +1,63 @@
 'use client'
 
 import ReactECharts from 'echarts-for-react'
-import { ScrapedJob } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface BudgetAnalysisChartProps {
-  jobs: ScrapedJob[]
+  jobs?: any[] // Keep for backward compatibility
 }
 
-export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) {
-  // Extract all budget data from jobs (both hourly and fixed-price)
-  const budgetData = jobs
-    .filter(job => job.budget_amount && job.budget_amount.trim() !== '')
-    .map(job => {
-      const budgetStr = job.budget_amount || ''
-      const budgetType = job.budget_type?.toLowerCase() || 'unknown'
-      
-      // Extract monetary values from budget strings
-      const matches = budgetStr.match(/\$?([\d,]+\.?\d*)/g)
-      if (!matches) return null
-      
-      const amounts = matches.map(match => parseFloat(match.replace(/[\$,]/g, '')))
-      let estimatedValue = 0
-      
-      if (budgetType === 'hourly') {
-        // For hourly: assume 40 hours for comparison (average small project)
-        const avgRate = amounts.reduce((sum, rate) => sum + rate, 0) / amounts.length
-        estimatedValue = avgRate * 40
-      } else {
-        // For fixed-price: use the average or single value
-        estimatedValue = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length
+interface BudgetRangeData {
+  budget_range: string
+  job_count: number
+  avg_budget: number
+}
+
+export default function BudgetAnalysisChart({ jobs: _legacyJobs }: BudgetAnalysisChartProps) {
+  const [budgetData, setBudgetData] = useState<BudgetRangeData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchMetrics() {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/metrics/budget-analysis')
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to fetch metrics')
+        }
+
+        setBudgetData(result.data || [])
+      } catch (err: any) {
+        console.error('Error fetching budget analysis:', err)
+        setError(err.message || 'Failed to load data')
+      } finally {
+        setLoading(false)
       }
-      
-      return {
-        value: estimatedValue,
-        type: budgetType,
-        originalBudget: budgetStr,
-        jobTitle: job.title || 'Untitled'
-      }
-    })
-    .filter(item => item !== null && item.value > 0) as Array<{
-      value: number;
-      type: string;
-      originalBudget: string;
-      jobTitle: string;
-    }>
+    }
+
+    fetchMetrics()
+  }, [])
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ textAlign: 'center', padding: '60px', color: 'error.main' }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{error}</Typography>
+      </Box>
+    )
+  }
 
   if (budgetData.length === 0) {
     return (
@@ -60,89 +74,41 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
     )
   }
 
-  // Define comprehensive budget ranges
-  const budgetRanges = [
-    { 
-      name: 'Micro Projects ($1-$100)', 
-      min: 1, 
-      max: 100, 
-      color: '#FF6B6B', 
-      icon: '🔧',
-      description: 'Quick tasks & fixes'
-    },
-    { 
-      name: 'Small Projects ($100-$500)', 
-      min: 100, 
-      max: 500, 
-      color: '#FFB347', 
-      icon: '📱',
-      description: 'Short-term work'
-    },
-    { 
-      name: 'Medium Projects ($500-$2K)', 
-      min: 500, 
-      max: 2000, 
-      color: '#4ECDC4', 
-      icon: '💼',
-      description: 'Standard projects'
-    },
-    { 
-      name: 'Large Projects ($2K-$5K)', 
-      min: 2000, 
-      max: 5000, 
-      color: '#45B7D1', 
-      icon: '🏢',
-      description: 'Major deliverables'
-    },
-    { 
-      name: 'Enterprise ($5K-$15K)', 
-      min: 5000, 
-      max: 15000, 
-      color: '#A29BFE', 
-      icon: '🏛️',
-      description: 'Complex solutions'
-    },
-    { 
-      name: 'Premium ($15K+)', 
-      min: 15000, 
-      max: Infinity, 
-      color: '#FD79A8', 
-      icon: '👑',
-      description: 'High-value contracts'
-    }
-  ]
+  // Map budget ranges from API to chart format
+  const rangeMapping: Record<string, { icon: string; color: string; description: string }> = {
+    '< $100': { icon: '🔧', color: '#FF6B6B', description: 'Quick tasks & fixes' },
+    '$100-$500': { icon: '📱', color: '#FFB347', description: 'Short-term work' },
+    '< $500': { icon: '📱', color: '#FFB347', description: 'Short-term work' },
+    '$500-$1,000': { icon: '💼', color: '#4ECDC4', description: 'Standard projects' },
+    '$1,000-$5,000': { icon: '🏢', color: '#45B7D1', description: 'Major deliverables' },
+    '$5,000+': { icon: '👑', color: '#FD79A8', description: 'High-value contracts' },
+    'Unknown': { icon: '❓', color: '#6B7280', description: 'Unspecified budget' }
+  }
 
-  // Count projects in each budget range
-  const rangeCounts = budgetRanges.map(range => {
-    const projectsInRange = budgetData.filter(item => 
-      item.value >= range.min && item.value < range.max
-    )
-    
-    const count = projectsInRange.length
-    const percentage = ((count / budgetData.length) * 100)
-    const avgBudget = count > 0 
-      ? projectsInRange.reduce((sum, item) => sum + item.value, 0) / count 
-      : 0
+  const rangeCounts = budgetData.map(item => {
+    const mapping = rangeMapping[item.budget_range] || { icon: '📊', color: '#9B59B6', description: 'Other' }
+    const totalJobs = budgetData.reduce((sum, r) => sum + Number(r.job_count), 0)
     
     return {
-      ...range,
-      count,
-      percentage,
-      avgBudget: Math.round(avgBudget)
+      name: item.budget_range,
+      count: Number(item.job_count),
+      percentage: totalJobs > 0 ? ((Number(item.job_count) / totalJobs) * 100) : 0,
+      avgBudget: Math.round(Number(item.avg_budget) || 0),
+      ...mapping
     }
   }).filter(range => range.count > 0)
 
   // Calculate insights
-  const totalProjects = budgetData.length
-  const avgProjectValue = Math.round(budgetData.reduce((sum, item) => sum + item.value, 0) / totalProjects)
-  const hourlyProjects = budgetData.filter(item => item.type === 'hourly').length
-  const fixedProjects = budgetData.filter(item => item.type === 'fixed').length
+  const totalProjects = rangeCounts.reduce((sum, r) => sum + r.count, 0)
+  const avgProjectValue = totalProjects > 0 
+    ? Math.round(rangeCounts.reduce((sum, r) => sum + (r.avgBudget * r.count), 0) / totalProjects)
+    : 0
 
   const option = {
     backgroundColor: '#0a0e1a',
     title: {
       text: '💰 Project Budget Landscape',
-      subtext: `Comprehensive analysis of ${totalProjects} projects • Avg Value: $${avgProjectValue.toLocaleString()} • ${Math.round((hourlyProjects/totalProjects)*100)}% Hourly`,
+      subtext: `Comprehensive analysis of ${totalProjects} projects • Avg Value: $${avgProjectValue.toLocaleString()}`,
       left: 'center',
       top: '3%',
       textStyle: {

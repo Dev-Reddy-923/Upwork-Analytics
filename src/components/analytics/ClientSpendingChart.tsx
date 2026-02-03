@@ -1,13 +1,65 @@
 'use client'
 
 import ReactECharts from 'echarts-for-react'
-import { ScrapedJob } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { CircularProgress, Box, Typography } from '@mui/material'
+import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface ClientSpendingChartProps {
-  jobs: ScrapedJob[]
+  jobs?: ScrapedJob[] // Keep for backward compatibility
 }
 
-export default function ClientSpendingChart({ jobs }: ClientSpendingChartProps) {
+export default function ClientSpendingChart({ jobs: propJobs }: ClientSpendingChartProps) {
+  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
+  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (propJobs && propJobs.length > 0) {
+      setJobs(propJobs)
+      setLoading(false)
+      return
+    }
+
+    async function fetchJobs() {
+      try {
+        setLoading(true)
+        const { data, error: fetchError } = await supabase
+          .from('scraped_jobs')
+          .select('*')
+          .not('client_total_spent', 'is', null)
+          .order('created_at', { ascending: false })
+
+        if (fetchError) throw new Error(fetchError.message)
+        setJobs(data || [])
+      } catch (err: any) {
+        console.error('Error fetching client spending data:', err)
+        setError(err.message || 'Failed to load data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchJobs()
+  }, [propJobs])
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ textAlign: 'center', padding: '60px', color: 'error.main' }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{error}</Typography>
+      </Box>
+    )
+  }
+
   // Extract spending data from jobs
   const spendingData = jobs
     .filter(job => job.client_total_spent && job.client_total_spent !== '')
