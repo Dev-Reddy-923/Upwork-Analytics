@@ -1,31 +1,71 @@
 'use client'
 
 import ReactECharts from 'echarts-for-react'
-import { ScrapedJob } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface JobsOverTimeChartProps {
-  jobs: ScrapedJob[]
+  jobs?: any[] // Keep for backward compatibility, but won't be used
 }
 
-export default function JobsOverTimeChart({ jobs }: JobsOverTimeChartProps) {
-  // Group jobs by date
-  const jobsByDate: Record<string, number> = {}
-  
-  jobs.forEach(job => {
-    if (job.created_at) {
-      // Convert to ISO date string (YYYY-MM-DD)
-      const date = new Date(job.created_at).toISOString().split('T')[0]
-      jobsByDate[date] = (jobsByDate[date] || 0) + 1
-    }
-  })
+interface TimeSeriesData {
+  date: string
+  job_count: number
+}
 
-  // Convert to array and sort by date
-  const timelineData = Object.entries(jobsByDate)
-    .map(([date, count]) => ({
-      date: new Date(date),
-      count: count
-    }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
+export default function JobsOverTimeChart({ jobs: _legacyJobs }: JobsOverTimeChartProps) {
+  const [timelineData, setTimelineData] = useState<TimeSeriesData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchMetrics() {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/metrics/jobs-over-time')
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to fetch metrics')
+        }
+
+        const data = result.data || []
+        // Transform the data
+        const transformed = data
+          .map((item: any) => ({
+            date: new Date(item.date),
+            count: Number(item.job_count)
+          }))
+          .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
+
+        setTimelineData(transformed)
+      } catch (err: any) {
+        console.error('Error fetching jobs over time:', err)
+        setError(err.message || 'Failed to load data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMetrics()
+  }, [])
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ textAlign: 'center', padding: '60px', color: 'error.main' }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{error}</Typography>
+      </Box>
+    )
+  }
 
   if (timelineData.length === 0) {
     return (

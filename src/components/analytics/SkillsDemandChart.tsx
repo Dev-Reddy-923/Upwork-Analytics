@@ -1,71 +1,70 @@
 'use client'
 
 import ReactECharts from 'echarts-for-react'
-import { ScrapedJob } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface SkillsDemandChartProps {
-  jobs: ScrapedJob[]
+  jobs?: any[] // Keep for backward compatibility, but won't be used
 }
 
-export default function SkillsDemandChart({ jobs }: SkillsDemandChartProps) {
-  // Extract skills from multiple sources
-  const skillsCount: Record<string, number> = {}
-  
-  const commonSkills = [
-    'React', 'JavaScript', 'Python', 'Node.js', 'TypeScript', 'PHP', 'Java', 'C#', 'C++',
-    'HTML', 'CSS', 'SQL', 'MongoDB', 'PostgreSQL', 'MySQL', 'AWS', 'Docker', 'Kubernetes',
-    'Git', 'REST API', 'GraphQL', 'WordPress', 'Shopify', 'Figma', 'Adobe', 'Photoshop',
-    'Illustrator', 'UI/UX', 'Mobile', 'iOS', 'Android', 'Flutter', 'React Native',
-    'Vue.js', 'Angular', 'Laravel', 'Django', 'Express', 'Next.js', 'Nuxt.js',
-    'Machine Learning', 'AI', 'Data Science', 'Analytics', 'SEO', 'Marketing',
-    'Content Writing', 'Translation', 'Video Editing', 'Animation', '3D Modeling',
-    'Blockchain', 'Solidity', 'Smart Contracts', 'Web3', 'DevOps', 'CI/CD',
-    'TensorFlow', 'PyTorch', 'Pandas', 'NumPy', 'Scikit-learn', 'R', 'Tableau',
-    'Power BI', 'Excel', 'Google Analytics', 'Facebook Ads', 'Google Ads'
-  ]
+interface SkillData {
+  skill: string
+  demand_count: number
+}
 
-  jobs.forEach(job => {
-    // Use Set to track unique skills per job (no duplicates)
-    const jobSkills = new Set<string>()
-    
-    // Define fields to search for skills
-    const searchFields = [
-      job.title || '',
-      job.description || '',
-      // Convert skills array to string for searching
-      Array.isArray(job.skills) ? job.skills.join(' ') : (job.skills || '')
-    ]
-    
-    // Combine all searchable text
-    const searchText = searchFields.join(' ').toLowerCase()
-    
-    // Check for each skill in all fields
-    commonSkills.forEach(skill => {
-      const skillLower = skill.toLowerCase()
-      
-      // Check for exact skill matches (word boundaries)
-      const skillPattern = new RegExp(`\\b${skillLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
-      
-      if (skillPattern.test(searchText)) {
-        jobSkills.add(skill)
+export default function SkillsDemandChart({ jobs: _legacyJobs }: SkillsDemandChartProps) {
+  const [skillsData, setSkillsData] = useState<SkillData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchMetrics() {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/metrics/skills-demand')
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to fetch metrics')
+        }
+
+        setSkillsData(result.data || [])
+      } catch (err: any) {
+        console.error('Error fetching skills demand:', err)
+        setError(err.message || 'Failed to load data')
+      } finally {
+        setLoading(false)
       }
-    })
-    
-    // Add found skills to count
-    jobSkills.forEach(skill => {
-      skillsCount[skill] = (skillsCount[skill] || 0) + 1
-    })
-  })
+    }
 
-  // Sort skills by demand (count) and get top 15
-  const topSkills = Object.entries(skillsCount)
-    .map(([skill, count]) => ({
-      skill,
-      count,
-      percentage: ((count / jobs.length) * 100).toFixed(1)
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 15)
+    fetchMetrics()
+  }, [])
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ textAlign: 'center', padding: '60px', color: 'error.main' }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{error}</Typography>
+      </Box>
+    )
+  }
+
+  // Get top 15 skills (already sorted by backend)
+  const totalJobs = skillsData.reduce((sum, item) => sum + Number(item.demand_count), 0)
+  const topSkills = skillsData.slice(0, 15).map(item => ({
+    skill: item.skill,
+    count: Number(item.demand_count),
+    percentage: totalJobs > 0 ? ((Number(item.demand_count) / totalJobs) * 100).toFixed(1) : '0.0'
+  }))
 
   // Vibrant color palette for dark mode
   const colors = [
@@ -109,7 +108,8 @@ export default function SkillsDemandChart({ jobs }: SkillsDemandChartProps) {
       },
       formatter: function(params: any) {
         const data = params.data
-        const percentage = ((data.value / jobs.length) * 100).toFixed(1)
+        const skillData = topSkills.find(s => s.skill === data.name)
+        const percentage = skillData?.percentage || '0.0'
         const demandLevel = data.value >= 15 ? 'High Demand' : 
                            data.value >= 8 ? 'Growing Demand' : 
                            data.value >= 4 ? 'Moderate Demand' : 'Emerging Skill'
@@ -234,7 +234,8 @@ export default function SkillsDemandChart({ jobs }: SkillsDemandChartProps) {
           fontSize: 12,
           fontWeight: 'bold',
           formatter: function(params: any) {
-            const percentage = ((params.value / jobs.length) * 100).toFixed(1)
+            const skillData = topSkills.find(s => s.skill === params.name)
+            const percentage = skillData?.percentage || '0.0'
             return `${params.value} (${percentage}%)`
           }
         },
