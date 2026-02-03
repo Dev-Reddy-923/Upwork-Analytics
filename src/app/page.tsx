@@ -24,36 +24,23 @@ import MaterialJobsList from '@/components/MaterialJobsList'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'jobs' | 'premium-map' | 'jobs-over-time' | 'budget-analysis' | 'client-countries' | 'client-spending' | 'client-hire-rate' | 'client-hourly-rate' | 'connects-required' | 'interview-rate' | 'skills-demand' | 'posting-heatmap'>('jobs')
-  const [jobs, setJobs] = useState<ScrapedJob[]>([])
-  const [loading, setLoading] = useState(true)
+  const [totalJobCount, setTotalJobCount] = useState<number>(0)
+  const [loading, setLoading] = useState(false)
 
+  // Fetch total job count for sidebar
   useEffect(() => {
-    async function fetchJobs() {
+    async function fetchTotalCount() {
       try {
-        setLoading(true)
-        const { data, error } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .not('title', 'is', null)
-          .not('client_location', 'is', null)
-          .not('budget_amount', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(1000)
-
-        if (error) {
-          console.error('Error fetching jobs:', error)
-          return
+        const response = await fetch('/api/metrics/total-count')
+        const result = await response.json()
+        if (result.total !== undefined) {
+          setTotalJobCount(result.total)
         }
-
-        setJobs(data || [])
       } catch (error) {
-        console.error('Unexpected error fetching jobs:', error)
-      } finally {
-        setLoading(false)
+        console.error('Error fetching total count:', error)
       }
     }
-
-    fetchJobs()
+    fetchTotalCount()
   }, [])
 
   const theme = useTheme()
@@ -94,7 +81,7 @@ export default function Home() {
       <MaterialSidebar
         activeTab={activeTab}
         onTabChange={(tab: string) => setActiveTab(tab as any)}
-        jobCount={jobs.length}
+        jobCount={totalJobCount}
       />
 
       {/* Main Content */}
@@ -131,67 +118,67 @@ export default function Home() {
           
           {activeTab === 'jobs-over-time' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <JobsOverTimeChart jobs={jobs} />
+              <JobsOverTimeChart />
             </Box>
           )}
           
           {activeTab === 'premium-map' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <ClientActivityChart jobs={jobs} />
+              <ClientActivityChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'budget-analysis' && (
             <Box className="chart-container">
-              <BudgetAnalysisChart jobs={jobs} />
+              <BudgetAnalysisChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'client-countries' && (
             <Box className="chart-container">
-              <ClientCountriesChart jobs={jobs} />
+              <ClientCountriesChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'client-spending' && (
             <Box className="chart-container">
-              <ClientSpendingChart jobs={jobs} />
+              <ClientSpendingChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'client-hire-rate' && (
             <Box className="chart-container">
-              <ClientHireRateChart jobs={jobs} />
+              <ClientHireRateChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'client-hourly-rate' && (
             <Box className="chart-container">
-              <ClientHourlyRateChart jobs={jobs} />
+              <ClientHourlyRateChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'connects-required' && (
             <Box className="chart-container">
-              <ConnectsRequiredChart jobs={jobs} />
+              <ConnectsRequiredChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'interview-rate' && (
             <Box className="chart-container">
-              <InterviewingRateChart jobs={jobs} />
+              <InterviewingRateChart jobs={[]} />
             </Box>
           )}
           
           {activeTab === 'skills-demand' && (
             <Box className="chart-container">
-              <SkillsDemandChart jobs={jobs} />
+              <SkillsDemandChart />
             </Box>
           )}
           
           {activeTab === 'posting-heatmap' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <JobPostingHeatmap jobs={jobs} />
+              <JobPostingHeatmap jobs={[]} />
             </Box>
           )}
         </Container>

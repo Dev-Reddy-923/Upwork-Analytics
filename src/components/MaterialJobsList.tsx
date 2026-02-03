@@ -45,6 +45,7 @@ import {
   ChevronRight as ChevronRightIcon,
   FirstPage as FirstPageIcon,
   LastPage as LastPageIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material'
 import { supabase } from '@/lib/supabase'
 import type { ScrapedJob } from '@/lib/supabase'
@@ -61,6 +62,7 @@ export default function MaterialJobsList() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalJobs, setTotalJobs] = useState<number>(0)
   const [totalCompleteJobs, setTotalCompleteJobs] = useState<number>(0)
+  const [exporting, setExporting] = useState(false)
   
   // Proposal modal state
   const [proposalModalOpen, setProposalModalOpen] = useState(false)
@@ -202,6 +204,45 @@ export default function MaterialJobsList() {
     }
   }
 
+  // Export database
+  const handleExportData = async (format: 'json' | 'csv' = 'json') => {
+    try {
+      setExporting(true)
+      const response = await fetch(`/api/export-data?format=${format}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to export data')
+      }
+
+      if (format === 'csv') {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `upwork-jobs-export-${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `upwork-jobs-export-${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      }
+    } catch (error: any) {
+      console.error('Error exporting data:', error)
+      alert('Failed to export data. Please try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // Generate AI proposal
   const handleGenerateProposal = async (job: ScrapedJob) => {
     setProposalModalOpen(true)
@@ -314,15 +355,37 @@ export default function MaterialJobsList() {
               Showing {jobs.length} jobs (Page {currentPage} of {Math.ceil(totalJobs / JOBS_PER_PAGE)})
             </Typography>
           </Box>
-          <Box sx={{ textAlign: 'right' }}>
-            <Chip 
-              label={`Total: ${totalJobs.toLocaleString()} jobs`}
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 600, fontSize: '0.875rem' }}
-            />
+          <Box sx={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Chip 
+                label={`Total: ${totalJobs.toLocaleString()} jobs`}
+                color="primary"
+                variant="outlined"
+                sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={() => handleExportData('json')}
+                disabled={exporting || totalJobs === 0}
+                sx={{ textTransform: 'none' }}
+              >
+                {exporting ? 'Exporting...' : 'Export JSON'}
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={() => handleExportData('csv')}
+                disabled={exporting || totalJobs === 0}
+                sx={{ textTransform: 'none' }}
+              >
+                {exporting ? 'Exporting...' : 'Export CSV'}
+              </Button>
+            </Stack>
             {totalCompleteJobs > 0 && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
                 {totalCompleteJobs.toLocaleString()} complete
               </Typography>
             )}

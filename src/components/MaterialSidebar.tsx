@@ -88,7 +88,7 @@ export default function MaterialSidebar({
       icon: WorkIcon,
       color: theme.palette.primary.main,
       description: 'Browse latest opportunities',
-      badge: String(jobCount),
+      badge: jobCount > 0 ? (jobCount > 99 ? '99+' : String(jobCount)) : undefined,
     },
     {
       id: 'jobs-over-time',
