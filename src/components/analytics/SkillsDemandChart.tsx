@@ -29,7 +29,14 @@ export default function SkillsDemandChart({ jobs: _legacyJobs }: SkillsDemandCha
           throw new Error(result.error || 'Failed to fetch metrics')
         }
 
-        setSkillsData(result.data || [])
+        const data = result.data || []
+        // Ensure data is an array and has the expected format
+        if (Array.isArray(data) && data.length > 0) {
+          setSkillsData(data)
+        } else {
+          console.warn('Skills demand API returned empty or invalid data:', data)
+          setSkillsData([])
+        }
       } catch (err: any) {
         console.error('Error fetching skills demand:', err)
         setError(err.message || 'Failed to load data')
@@ -59,12 +66,30 @@ export default function SkillsDemandChart({ jobs: _legacyJobs }: SkillsDemandCha
   }
 
   // Get top 15 skills (already sorted by backend)
-  const totalJobs = skillsData.reduce((sum, item) => sum + Number(item.demand_count), 0)
+  const totalJobs = skillsData.reduce((sum, item) => sum + Number(item.demand_count || 0), 0)
   const topSkills = skillsData.slice(0, 15).map(item => ({
-    skill: item.skill,
-    count: Number(item.demand_count),
-    percentage: totalJobs > 0 ? ((Number(item.demand_count) / totalJobs) * 100).toFixed(1) : '0.0'
-  }))
+    skill: item.skill || 'Unknown',
+    count: Number(item.demand_count || 0),
+    percentage: totalJobs > 0 ? ((Number(item.demand_count || 0) / totalJobs) * 100).toFixed(1) : '0.0'
+  })).filter(skill => skill.count > 0)
+
+  if (topSkills.length === 0) {
+    return (
+      <Box sx={{ 
+        textAlign: 'center', 
+        padding: '60px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(139, 92, 246, 0.3) 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#ffffff'
+      }}>
+        <Typography variant="h5" sx={{ color: '#8B5CF6', mb: 2 }}>No skills data available</Typography>
+        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+          Skills data will appear once jobs with skills information are available.
+        </Typography>
+      </Box>
+    )
+  }
 
   // Vibrant color palette for dark mode
   const colors = [

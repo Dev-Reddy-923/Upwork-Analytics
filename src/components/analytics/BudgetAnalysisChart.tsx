@@ -30,7 +30,14 @@ export default function BudgetAnalysisChart({ jobs: _legacyJobs }: BudgetAnalysi
           throw new Error(result.error || 'Failed to fetch metrics')
         }
 
-        setBudgetData(result.data || [])
+        const data = result.data || []
+        // Ensure data is an array and has the expected format
+        if (Array.isArray(data) && data.length > 0) {
+          setBudgetData(data)
+        } else {
+          console.warn('Budget analysis API returned empty or invalid data:', data)
+          setBudgetData([])
+        }
       } catch (err: any) {
         console.error('Error fetching budget analysis:', err)
         setError(err.message || 'Failed to load data')
@@ -87,16 +94,34 @@ export default function BudgetAnalysisChart({ jobs: _legacyJobs }: BudgetAnalysi
 
   const rangeCounts = budgetData.map(item => {
     const mapping = rangeMapping[item.budget_range] || { icon: '📊', color: '#9B59B6', description: 'Other' }
-    const totalJobs = budgetData.reduce((sum, r) => sum + Number(r.job_count), 0)
+    const totalJobs = budgetData.reduce((sum, r) => sum + Number(r.job_count || 0), 0)
     
     return {
-      name: item.budget_range,
-      count: Number(item.job_count),
-      percentage: totalJobs > 0 ? ((Number(item.job_count) / totalJobs) * 100) : 0,
-      avgBudget: Math.round(Number(item.avg_budget) || 0),
+      name: item.budget_range || 'Unknown',
+      count: Number(item.job_count || 0),
+      percentage: totalJobs > 0 ? ((Number(item.job_count || 0) / totalJobs) * 100) : 0,
+      avgBudget: Math.round(Number(item.avg_budget || 0)),
       ...mapping
     }
   }).filter(range => range.count > 0)
+
+  if (rangeCounts.length === 0) {
+    return (
+      <Box sx={{ 
+        textAlign: 'center', 
+        padding: '60px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(255, 193, 7, 0.3) 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#ffffff'
+      }}>
+        <Typography variant="h5" sx={{ color: '#FFC107', mb: 2 }}>No budget data available</Typography>
+        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+          Budget analysis will appear once jobs with budget information are available.
+        </Typography>
+      </Box>
+    )
+  }
 
   // Calculate insights
   const totalProjects = rangeCounts.reduce((sum, r) => sum + r.count, 0)

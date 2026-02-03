@@ -98,16 +98,33 @@ export default function ClientHireRateChart({ jobs: propJobs }: ClientHireRateCh
     const count = hireRateData.filter(item => 
       item.rate >= range.min && item.rate < range.max
     ).length
-    const percentage = ((count / hireRateData.length) * 100)
+    const percentage = hireRateData.length > 0 ? ((count / hireRateData.length) * 100) : 0
+    const rangeData = hireRateData.filter(item => item.rate >= range.min && item.rate < range.max)
     return {
       ...range,
       count,
       percentage,
-      avgRate: hireRateData
-        .filter(item => item.rate >= range.min && item.rate < range.max)
-        .reduce((sum, item) => sum + item.rate, 0) / count || 0
+      avgRate: count > 0 ? rangeData.reduce((sum, item) => sum + item.rate, 0) / count : 0
     }
   }).filter(range => range.count > 0)
+
+  if (rangeCounts.length === 0) {
+    return (
+      <Box sx={{ 
+        textAlign: 'center', 
+        padding: '60px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(139, 92, 246, 0.3) 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#ffffff'
+      }}>
+        <Typography variant="h5" sx={{ color: '#8B5CF6', mb: 2 }}>No hire rate data available</Typography>
+        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+          Hire rate analysis will appear once jobs with client hire rate information are available.
+        </Typography>
+      </Box>
+    )
+  }
 
   const option = {
     backgroundColor: '#0a0e1a',
